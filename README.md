@@ -1,2 +1,2 @@
 # SPJ
-CS231N/SC230 Final Course Project
+CS231N/CS230 Final Course Project
