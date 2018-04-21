@@ -4,7 +4,7 @@ CS231N/CS230 Final Course Project
 
 
 ## Google Cloud Instance/Image
-Follow this exactly!
+Follow this exactly! With one exeception, storage size. Keep in mind Data alone (without videos, just preprocessed features) requires about 90GB of data.
 http://cs231n.github.io/gce-tutorial/
 
 
