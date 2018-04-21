@@ -1,10 +1,10 @@
 # SPJ (Songze, Parker, Julio)
 CS231N/CS230 Final Course Project
 
-## Evaluation See
+## Evaluation Code
 https://github.com/ranjaykrishna/densevid_eval
 
-## Paper 
+## Paper and Benchmarks
 https://arxiv.org/abs/1705.00754
 
 ## Dataset
