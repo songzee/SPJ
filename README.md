@@ -11,6 +11,12 @@ https://arxiv.org/abs/1705.00754
 http://cs.stanford.edu/people/ranjaykrishna/densevid/
 
 ## Download Instructions
+Make Data directory
+```
+mkdir Data
+cd Data
+```
+
 Download CD3 Features
 ```
 curl -O http://ec2-52-11-11-89.us-west-2.compute.amazonaws.com/data/challenge16/features/c3d/activitynet_v1-3.part-00
@@ -57,5 +63,9 @@ http://activity-net.org/
 
 ## Dense-Captioning Task Page
 http://activity-net.org/challenges/2018/tasks/anet_captioning.html
+
+## Google Cloud Instance/Image
+Follow this exactly!
+http://cs231n.github.io/gce-tutorial/
 
 
