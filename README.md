@@ -10,6 +10,26 @@ https://arxiv.org/abs/1705.00754
 ## Dataset
 http://cs.stanford.edu/people/ranjaykrishna/densevid/
 
+## Download Instructions
+Download CD3 Features
+```
+curl -O http://ec2-52-11-11-89.us-west-2.compute.amazonaws.com/data/challenge16/features/c3d/activitynet_v1-3.part-00
+curl -O http://ec2-52-11-11-89.us-west-2.compute.amazonaws.com/data/challenge16/features/c3d/activitynet_v1-3.part-01
+curl -O http://ec2-52-11-11-89.us-west-2.compute.amazonaws.com/data/challenge16/features/c3d/activitynet_v1-3.part-02
+curl -O http://ec2-52-11-11-89.us-west-2.compute.amazonaws.com/data/challenge16/features/c3d/activitynet_v1-3.part-03
+curl -O http://ec2-52-11-11-89.us-west-2.compute.amazonaws.com/data/challenge16/features/c3d/activitynet_v1-3.part-04
+curl -O http://ec2-52-11-11-89.us-west-2.compute.amazonaws.com/data/challenge16/features/c3d/activitynet_v1-3.part-05
+curl -O http://ec2-52-11-11-89.us-west-2.compute.amazonaws.com/data/challenge16/features/c3d/PCA_activitynet_v1-3.hdf5
+```
+Group unzipped splitted files
+```
+cat activitynet_v1-3.part-* > temp.zip 
+```
+Unzip files
+```
+unzip temp.zip
+```
+
 ## Submission Format
 ```
 {
@@ -37,3 +57,5 @@ http://activity-net.org/
 
 ## Dense-Captioning Task Page
 http://activity-net.org/challenges/2018/tasks/anet_captioning.html
+
+
