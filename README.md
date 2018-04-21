@@ -32,4 +32,8 @@ external_data: {
 }
 }
 ```
+## ActivityNet Home Page
+http://activity-net.org/
 
+## Dense-Captioning Task Page
+http://activity-net.org/challenges/2018/tasks/anet_captioning.html
