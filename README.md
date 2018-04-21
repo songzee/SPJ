@@ -11,7 +11,7 @@ https://arxiv.org/abs/1705.00754
 http://cs.stanford.edu/people/ranjaykrishna/densevid/
 
 ## Submission Format
-```json
+```
 {
 version: "VERSION 1.0",
 results: {
