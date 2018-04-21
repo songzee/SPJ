@@ -1,20 +1,25 @@
 # SPJ (Songze, Parker, Julio)
 CS231N/CS230 Final Course Project
 
-## Evaluation Code
-https://github.com/ranjaykrishna/densevid_eval
 
-## Paper and Benchmarks
-https://arxiv.org/abs/1705.00754
 
-## Dataset
-http://cs.stanford.edu/people/ranjaykrishna/densevid/
+## Google Cloud Instance/Image
+Follow this exactly!
+http://cs231n.github.io/gce-tutorial/
+
+
 
 ## Download Instructions
 Make Data directory
 ```
 mkdir Data
 cd Data
+```
+
+Dowload IDs and Labs for All Spits
+```
+curl -O https://cs.stanford.edu/people/ranjaykrishna/densevid/captions.zip
+unzip captions.zip
 ```
 
 Download CD3 Features
@@ -27,14 +32,17 @@ curl -O http://ec2-52-11-11-89.us-west-2.compute.amazonaws.com/data/challenge16/
 curl -O http://ec2-52-11-11-89.us-west-2.compute.amazonaws.com/data/challenge16/features/c3d/activitynet_v1-3.part-05
 curl -O http://ec2-52-11-11-89.us-west-2.compute.amazonaws.com/data/challenge16/features/c3d/PCA_activitynet_v1-3.hdf5
 ```
+
 Group unzipped splitted files
 ```
 cat activitynet_v1-3.part-* > temp.zip 
 ```
+
 Unzip files
 ```
 unzip temp.zip
 ```
+
 
 ## Submission Format
 ```
@@ -58,14 +66,22 @@ external_data: {
 }
 }
 ```
-## ActivityNet Home Page
+
+
+## Evaluation Code
+https://github.com/ranjaykrishna/densevid_eval
+
+
+
+## Quick References
+Paper and Benchmarks
+https://arxiv.org/abs/1705.00754
+
+Dataset
+http://cs.stanford.edu/people/ranjaykrishna/densevid/
+
+ActivityNet Home Page
 http://activity-net.org/
 
-## Dense-Captioning Task Page
+Dense-Captioning Task Page
 http://activity-net.org/challenges/2018/tasks/anet_captioning.html
-
-## Google Cloud Instance/Image
-Follow this exactly!
-http://cs231n.github.io/gce-tutorial/
-
-
