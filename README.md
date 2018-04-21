@@ -16,7 +16,7 @@ mkdir Data
 cd Data
 ```
 
-Dowload IDs and Labels for All Spits
+Dowload IDs and Labels for All Splits
 ```
 curl -O https://cs.stanford.edu/people/ranjaykrishna/densevid/captions.zip
 unzip captions.zip
