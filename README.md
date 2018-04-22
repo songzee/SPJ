@@ -67,6 +67,27 @@ external_data: {
 }
 ```
 
+## Detach Using Screen 
+
+Start Screen Session
+```
+screen -S jupyter
+```
+
+start jupyter notebook
+```
+jupyter notebook
+```
+
+detach
+Press CTRL-A, D
+
+re-attach to this screen session
+```
+screen -r jupyter
+```
+
+
 
 ## Evaluation Code
 https://github.com/ranjaykrishna/densevid_eval
