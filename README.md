@@ -16,7 +16,7 @@ mkdir Data
 cd Data
 ```
 
-Dowload IDs and Labels for All Splits
+Download IDs and Labels for All Splits
 ```
 curl -O https://cs.stanford.edu/people/ranjaykrishna/densevid/captions.zip
 unzip captions.zip
@@ -87,11 +87,16 @@ re-attach to this screen session
 screen -r jupyter
 ```
 
+## Deep Action Proposals (DAPs Repo)
+https://github.com/escorciav/daps
+
+
+## NetVLAD (LOUPE Repo)
+https://github.com/antoine77340/LOUPE
 
 
 ## Evaluation Code
 https://github.com/ranjaykrishna/densevid_eval
-
 
 
 ## Quick References
