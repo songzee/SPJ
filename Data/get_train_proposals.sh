@@ -12,6 +12,7 @@
 
 DIR="../../daps"
 MODEL="T512K64_thumos14.npz"
+VideoID="v_sJFgo9H6zNo"
 while read VideoID; do
   echo "VideoID: $VideoID"
   $DIR/tools/generate_proposals.py -iv $VideoID -ic3d sub_activitynet_v1-3.c3d.hdf5 -imd $DIR/$MODEL

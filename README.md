@@ -87,6 +87,11 @@ re-attach to this screen session
 screen -r jupyter
 ```
 
+## Adding to PYTHONPATH
+```
+export PYTHONPATH=$(pwd)
+```
+
 ## Deep Action Proposals (DAPs Repo)
 https://github.com/escorciav/daps
 
