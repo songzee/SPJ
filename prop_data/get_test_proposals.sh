@@ -10,11 +10,11 @@
 #
 # ```
 
-DIR="../../daps"
+DIR="daps"
 MODEL="T512K64_thumos14.npz"
-VideoID="v_sJFgo9H6zNo"
+DIR_C3D="C3D_Data"
 while read VideoID; do
   echo "VideoID: $VideoID"
-  $DIR/tools/generate_proposals.py -iv $VideoID -ic3d sub_activitynet_v1-3.c3d.hdf5 -imd $DIR/$MODEL
+  $DIR/tools/generate_proposals.py -iv $VideoID -ic3d $DIR_C3D/sub_activitynet_v1-3.c3d.hdf5 -imd $DIR/$MODEL
   echo "\n"
-done <train_ids.csv
+done <test_ids.csv
