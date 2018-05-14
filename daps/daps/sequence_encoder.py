@@ -2,7 +2,7 @@ import lasagne
 import numpy as np
 import theano
 from lasagne.layers import DenseLayer, InputLayer, LSTMLayer, SliceLayer
-from lasagne.layers import get_all_layers, get_output, set_all_param_values
+from lasagne.layers import get_all_layers, get_output, set_all_param_values, get_output_shape
 from lasagne.utils import floatX
 
 from daps.utils.segment import format as segment_format
@@ -67,27 +67,51 @@ class DAPs(object):
         tanh = lasagne.nonlinearities.tanh
         gate, constant = lasagne.layers.Gate, lasagne.init.Constant
         for _ in range(self.depth):
-            network = LSTMLayer(network, self.width, nonlinearity=tanh,
+            network1 = LSTMLayer(network, self.width, nonlinearity=tanh,
                                 grad_clipping=grad_clip,
                                 forgetgate=gate(b=constant(forget_bias)))
 
         # Retain last-output state
-        network = SliceLayer(network, -1, 1)
+        network = SliceLayer(network1, -1, 1)
 
         # Output layer
         sigmoid = lasagne.nonlinearities.sigmoid
         loc_layer = DenseLayer(network, self.num_outputs * 2)
-        conf_layer = DenseLayer(network, self.num_outputs,
-                                nonlinearity=sigmoid)
+        conf_layer = DenseLayer(network, self.num_outputs,nonlinearity=sigmoid)
+
 
         # Grab all layers into DAPs instance
-        self.network = get_all_layers([loc_layer, conf_layer])
+        #self.network = get_all_layers([loc_layer, conf_layer])
+        
+        #new
+        self.network = get_all_layers([loc_layer, conf_layer, network1])
 
         # Get theano expression for outputs of DAPs model
-        self.loc_var, self.conf_var = get_output([loc_layer, conf_layer],
-                                                 deterministic=True)
-
+        #self.loc_var, self.conf_var = get_output([loc_layer, conf_layer],deterministic=True)
+        
+        #new
+        self.loc_var, self.conf_var, self.hidden_var = get_output([loc_layer, conf_layer, network1],deterministic=True)
+        
+        #new 
+        #print
+        #print "self.loc_var"
+        #print self.loc_var
+        #print
+        
+        #print
+        #print "self.conf_var"
+        #print self.conf_var
+        #print
+        
+        #print
+        #print "self.hidden_var"
+        #print self.hidden_var
+        #print
+        
+        
+        
     def compile(self, **kwargs):
+        #print "compile"
         """Compile theano function
 
         Parameters
@@ -99,10 +123,13 @@ class DAPs(object):
         if callable(self.model):
             print 'Model is already compile'
             return None
-        self.model = theano.function([self.input_var],
-                                     [self.loc_var, self.conf_var])
-
+        #self.model = theano.function([self.input_var],[self.loc_var, self.conf_var])
+        
+        #new
+        self.model = theano.function([self.input_var],[self.loc_var, self.conf_var, self.hidden_var])
+        
     def forward_pass(self, input_data):
+        #print "forward_pass"
         """Foward-pass over sequence encoder
 
         Generate segment proposals and their confidence for bunch of clips
@@ -137,10 +164,36 @@ class DAPs(object):
         if input_data.shape[2] != self.input_size:
             raise ValueError('Incorrect input data size along 3rd dimension.')
 
-        loc, conf = self.model(input_data)
-        return loc, conf
+        #loc, conf = self.model(input_data)
+         
+        #new
+        loc, conf, hidden = self.model(input_data)
+        
+        #print 
+        #print "loc"
+        #print loc
+        #print loc.shape
+        #print
+        
+        #print 
+        #print "conf"
+        #print conf
+        #print conf.shape
+        #print
+        
+        #print 
+        #print "hidden"
+        #print hidden
+        #print hidden.shape
+        #print
+        
+        #return loc, conf
+        
+        #new
+        return loc, conf, hidden
 
     def load_model(self, filename):
+        #print "load_module"
         """Set parameters of DAPs model
 
         Parameters
@@ -154,6 +207,7 @@ class DAPs(object):
         set_all_param_values(self.network, param_values)
 
     def retrieve_proposals(self, c3d_stack, f_init_array, override=False):
+        #print "retrieve_proposals"
         """Retrieve proposals for multiple streams.
 
         Parameters
@@ -190,7 +244,17 @@ class DAPs(object):
             raise ValueError('Mismatch between c3d_stack and f_init_array')
         n_streams = c3d_stack.shape[0]
 
-        loc, score = self.forward_pass(floatX(c3d_stack))
+        #loc, score = self.forward_pass(floatX(c3d_stack))
+        
+        #new
+        loc, score, hidden_reps = self.forward_pass(floatX(c3d_stack))
+        
+        #print
+        #print "loc"
+        #print loc
+        #print loc.shape
+        #print
+        
 
         if override and self.anchors is not None:
             loc[:, ...] = self.anchors.reshape(-1)
@@ -207,4 +271,12 @@ class DAPs(object):
         proposals = np.reshape(
             segment_format(loc.reshape((-1, 2)), 'c2b'),
             (n_streams, -1, 2)).astype(int)
-        return proposals, score
+        
+        #print "proposals"
+        #print proposals
+        #print proposals.shape
+        #print
+        #return proposals, score
+        
+        #new
+        return proposals, score, hidden_reps

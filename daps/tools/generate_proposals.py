@@ -118,8 +118,26 @@ def main(video_name, c3d_hdf5, model_file, anchors_hdf5='non-existent',
 
     # Generate proposals along the whole video
     print 'Generating segments'
-    proposals, score = sequence_encoder.retrieve_proposals(
+    proposals, score, hidden_reps = sequence_encoder.retrieve_proposals(
         ve_representation, f_init_arr)
+    
+    print
+    print "proposals"
+    print proposals
+    print proposals.shape
+    print
+    
+    print
+    print "score"
+    print score
+    print score.shape
+    print
+    
+    print
+    print "hidden_reps"
+    print hidden_reps
+    print hidden_reps.shape
+    print
 
     # Post-processing
     print 'Post-processing segments'
@@ -144,6 +162,25 @@ def main(video_name, c3d_hdf5, model_file, anchors_hdf5='non-existent',
             raise ValueError('Existent output: {}'.format(output_csv))
 
         df_out.to_csv(output_csv, index=None, sep=' ')
+    
+    print
+    print "pp_proposals"
+    print pp_proposals
+    print pp_proposals.shape
+    print
+    
+    print
+    print "pp_score"
+    print pp_score
+    print pp_score.shape
+    print
+    
+    print
+    print "hidden_reps"
+    print hidden_reps
+    print hidden_reps.shape
+    print
+    
     return df_out
 
 
