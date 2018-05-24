@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import csv
+import string
 
 def temporal_pooling(features,mode="max"):
     """
@@ -46,8 +47,11 @@ def temporal_indicator(framestamps, mode):
 
 def export_vocabulary(train_data):
     caption_words = []
+    delset = string.punctuation
     for caption in train_data["sentences"]:
-        caption_words.extend(caption.strip('.').strip(', ').replace("'", "").lower().split(' '))
+#         caption = caption.translate(None,delset)
+#         caption_words.extend(caption.strip('.').strip(', ').replace("'", "").lower().split(' '))
+          caption_words.extend(caption.strip('.').strip(', ').strip('"').strip('"').strip(",").replace("'", "").lower().split(' '))
     print("Total number of words in all captions: ", len(caption_words))
     word_set = set(caption_words)
     vocabulary = list(word_set)
