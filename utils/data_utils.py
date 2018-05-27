@@ -2,6 +2,9 @@ import numpy as np
 import pandas as pd
 import csv
 import string
+import h5py
+import re
+import math
 
 def temporal_pooling(features,mode="max"):
     """
@@ -63,3 +66,292 @@ def export_vocabulary(train_data):
         writer = csv.writer(output, lineterminator='\n')
         for val in vocabulary:
             writer.writerow([val])
+                     
+def video_preprocess():
+    # format
+    train_data = pd.read_csv("/home/martnzjulio_a/songze/SPJ/train_extreme_small.csv")
+    train_data.rename( columns={'Unnamed: 0':'index'}, inplace=True )
+    train_data["duration"] = train_data["duration"].astype('float32')
+    train_data["t_init"], train_data["t_end"] = train_data["timestamps"].str.split(", ", 1).str
+    train_data["t_init"] = train_data["t_init"].str.strip("[")
+    train_data["t_end"] = train_data["t_end"].str.strip("]")
+    train_data["t_init"] = train_data["t_init"].astype('float32')
+    train_data["t_end"] = train_data["t_end"].astype('float32')
+    train_data = train_data.drop('timestamps', 1)
+
+    # pool
+    filename = "/home/martnzjulio_a/c3d_data/sub_activitynet_v1-3.c3d.hdf5"
+    video_feature_representation = h5py.File(filename, 'r')
+    train_ids = train_data['id'].unique()
+    f_inits = []
+    f_ends = []
+    max_pooled_representations = []
+    max_proposals = 0
+    padded_proposals = np.zeros((99,500,30))
+    padded_framestamps = -1*np.ones((99,2,30))
+    for v,video_id in enumerate(train_ids):
+        #print("video id: ", video_id)
+        temp = train_data[train_data['id']==video_id].reset_index()
+        C3D_features = video_feature_representation["v_QOlSCBRmfWY"]['c3d_features'].value
+
+        if max_proposals < temp.shape[0]:
+            max_proposals = temp.shape[0]
+
+        for i in range(temp.shape[0]):
+
+            # get time info
+            duration = temp["duration"][i]
+            t_init = temp["t_init"][i]
+            t_end = temp["t_end"][i]
+            num_frames = C3D_features.shape[0]
+
+            # compute start and end frame
+            f_init = int(round((t_init/duration)*num_frames))
+            f_end = int(round((t_end/duration)*num_frames))
+            #print("f_init: ", f_init, "t_init: ", t_init)
+            #print("f_end: ", f_end, "t_end: ", t_end)
+
+            # get max pool
+            if f_init <= f_end:
+                max_pooled_rep = temporal_pooling(C3D_features[f_init:f_end],"max")
+            else:
+                max_pooled_rep = temporal_pooling(C3D_features[f_end:f_init],"max")
+
+            # append info
+            f_inits.append(f_init)
+            f_ends.append(f_end)
+            max_pooled_representations.append(max_pooled_rep)
+            padded_proposals[v,:,i] = max_pooled_rep
+            padded_framestamps[v,0,i] = f_init
+            padded_framestamps[v,1,i] = f_end
+
+
+    f_inits = np.array(f_inits)
+    f_inits = pd.DataFrame({'f_init': f_inits})
+    f_ends = np.array(f_ends) 
+    f_ends = pd.DataFrame({'f_end': f_ends})
+
+    max_pooled_representations = np.array(max_pooled_representations)
+    C3D_feature_column_names = ["h" + str(i) for i in range(max_pooled_representations.shape[1])] 
+    max_pooled_representations = pd.DataFrame(max_pooled_representations, columns=C3D_feature_column_names)
+
+    train_data = pd.concat([train_data, f_inits, f_ends, max_pooled_representations], axis=1)
+    train_data.to_pickle("train_data")
+
+    print("number of examples: ", train_ids.shape[0])
+    print("train_data.shape: ", train_data.shape)
+    print("padded_proposals.shape: ", padded_proposals.shape)
+    print("padded_framestamps.shape: ", padded_framestamps.shape) 
+    return train_ids,train_data,padded_proposals,padded_framestamps
+
+def caption_preprocess():  
+    train_voc = pd.read_csv("/home/martnzjulio_a/songze/SPJ/train_all.csv")
+    train_voc.rename( columns={'Unnamed: 0':'index'}, inplace=True )
+    train_voc["duration"] = train_voc["duration"].astype('float32')
+    train_voc["t_init"], train_voc["t_end"] = train_voc["timestamps"].str.split(", ", 1).str
+    train_voc["t_init"] = train_voc["t_init"].str.strip("[")
+    train_voc["t_end"] = train_voc["t_end"].str.strip("]")
+    train_voc["t_init"] = train_voc["t_init"].astype('float32')
+    train_voc["t_end"] = train_voc["t_end"].astype('float32')
+    train_voc = train_voc.drop('timestamps', 1)
+
+    export_vocabulary(train_voc)
+    df = pd.read_csv('/home/martnzjulio_a/songze/SPJ/vocabulary.csv')
+    voc = df["Unnamed: 0"].tolist()
+    vocabulary = []
+    for word in voc:
+        if word.isalpha():
+            vocabulary.append(word)
+            
+    vocab_size = len(vocabulary)
+    return vocabulary,vocab_size
+
+def get_wordvector(emb_dim,vocab_size,vocabulary):
+    """Reads from original word lib file and returns embedding matrix and
+    mappings from words to word ids.
+
+    Returns:
+      emb_matrix: Numpy array shape (len(vocabulary), word_dim) containing word embeddings
+        (plus PAD and UNK embeddings in first 4 rows).
+        The rows of emb_matrix correspond to the word ids given in word2id and id2word
+      word2id: dictionary mapping word (string) to word id (int)
+      id2word: dictionary mapping word id (int) to word (string)
+    """
+    _PAD = b"<pad>"
+    _UNK = b"<unk>"
+    _STA = b"<sta>"
+    _END = b"<end>"
+    _START_VOCAB = [_PAD,_UNK,_STA,_END]
+    PAD_ID = 0
+    UNK_ID = 1
+    STA_ID = 2
+    END_ID = 3
+    
+    vocabulary = _START_VOCAB + vocabulary
+
+    emb_matrix = np.zeros((vocab_size + len(_START_VOCAB), emb_dim))
+    word2id = {}
+    id2word = {}
+
+    random_init = True
+    # randomly initialize all the tokens
+    emb_matrix[:, :] = np.random.randn(vocab_size + len(_START_VOCAB), emb_dim)
+
+    # put start tokens in the dictionaries
+    idx = 0
+    for word in vocabulary:
+        word2id[word] = idx
+        id2word[idx] = word
+        idx += 1
+
+
+    final_vocab_size = vocab_size + len(_START_VOCAB)
+    assert len(word2id) == final_vocab_size
+    assert len(id2word) == final_vocab_size
+    assert idx == final_vocab_size
+
+    return emb_matrix, word2id, id2word
+#Changed by Songze
+def split_by_whitespace(sentence):
+    words = []
+    for space_separated_fragment in sentence.strip().split():
+        words.extend(re.split(" ", space_separated_fragment))
+    return [w for w in words if w]
+
+
+def intstr_to_intlist(string):
+    """Given a string e.g. '311 9 1334 635 6192 56 639', returns as a list of integers"""
+    return [int(s) for s in string.split()]
+
+
+def sentence_to_token_ids(sentence, word2id):
+    _PAD = b"<pad>"
+    _UNK = b"<unk>"
+    _STA = b"<sta>"
+    _END = b"<end>"
+    _START_VOCAB = [_PAD,_UNK,_STA,_END]
+    PAD_ID = 0
+    UNK_ID = 1
+    STA_ID = 2
+    END_ID = 3
+    """Turns an already-tokenized sentence string into word indices
+    e.g. "i do n't know" -> [9, 32, 16, 96]
+    Note any token that isn't in the word2id mapping gets mapped to the id for UNK
+    """
+    tokens = split_by_whitespace(sentence) # list of strings
+    ids = [word2id.get(w.lower(), UNK_ID) for w in tokens]
+    return tokens, ids
+
+
+def padded(token_batch, batch_pad=0):
+    """
+    Inputs:
+      token_batch: List (length batch size) of lists of ints.
+      batch_pad: Int. Length to pad to. If 0, pad to maximum length sequence in token_batch.
+    Returns:
+      List (length batch_size) of padded lists of ints.
+        All are same length - batch_pad if batch_pad!=0, otherwise the maximum length in token_batch
+    """
+    _PAD = b"<pad>"
+    _UNK = b"<unk>"
+    _STA = b"<sta>"
+    _END = b"<end>"
+    _START_VOCAB = [_PAD,_UNK,_STA,_END]
+    PAD_ID = 0
+    UNK_ID = 1
+    STA_ID = 2
+    END_ID = 3
+    maxlen = max(lambda x: len(x), token_batch) if batch_pad == 0 else batch_pad
+    res = [STA_ID]+token_batch+[END_ID]+[PAD_ID] * (maxlen - len(token_batch)-2)
+
+    return res
+
+def get_padded_sentences_id(pad_len,train_ids, train_data,word2id):
+    _PAD = b"<pad>"
+    _UNK = b"<unk>"
+    _STA = b"<sta>"
+    _END = b"<end>"
+    _START_VOCAB = [_PAD,_UNK,_STA,_END]
+    PAD_ID = 0
+    UNK_ID = 1
+    STA_ID = 2
+    END_ID = 3
+    all_padded_sentences = np.zeros((99,pad_len,30))
+    for v,video_id in enumerate(train_ids):
+        temp = train_data[train_data['id']==video_id].reset_index()
+        for i in range(temp.shape[0]):
+            words,ids = sentence_to_token_ids(temp['sentences'][i][:-1],word2id)
+            ids_pad = padded(ids,pad_len)
+            all_padded_sentences[v,:,i] = ids_pad
+
+
+    all_padded_sentences_2 = np.zeros((99,pad_len+1,30))
+    for v,video_id in enumerate(train_ids):
+        temp = train_data[train_data['id']==video_id].reset_index()
+        for i in range(temp.shape[0]):
+            words,ids = sentence_to_token_ids(temp['sentences'][i][:-1],word2id)
+            ids_pad = padded(ids,pad_len+1)
+            all_padded_sentences_2[v,:,i] = ids_pad
+    all_padded_sentences_id = np.array(all_padded_sentences).astype(int)
+            
+    return all_padded_sentences,all_padded_sentences_2,all_padded_sentences_id
+
+def random_mini_batches(H, Ipast, Ifuture, Ycaptions, Xcaptions, mini_batch_size = 9, seed = 0):
+    """
+    Creates a list of random minibatches from (H, Ipast, Ifuture, Ycaptions, Xcaptions)
+    
+    Arguments:
+    H -- training set, of shape = [n_train,num_c3d_features,num_proposals]
+    Y -- caption labels, of shape = [n_train,num_proposals,num_steps+1]
+    mini_batch_size - size of the mini-batches, integer
+    seed -- this is only for the purpose of grading, so that you're "random minibatches are the same as ours.
+    
+    Returns:
+    mini_batches -- list of synchronous (mini_batch_X, mini_batch_Y)
+    """
+    
+    """
+    
+    X -- input data, of shape (input size, number of examples)
+    Y -- true "label" vector (containing 0 if cat, 1 if non-cat), of shape (1, number of examples)
+    mini_batch_size - size of the mini-batches, integer
+    seed -- this is only for the purpose of grading, so that you're "random minibatches are the same as ours.
+    
+    Returns:
+    mini_batches -- list of synchronous (mini_batch_X, mini_batch_Y)
+     """
+    
+    m = H.shape[0]                  # number of training examples
+    mini_batches = []
+    np.random.seed(seed)
+    
+    # Step 1: Shuffle (H, Ipast, Ifuture, Ycaptions, Xcaptions)
+    permutation = list(np.random.permutation(m))
+    shuffled_H = H[permutation]
+    shuffled_Ipast = Ipast[permutation]
+    shuffled_Ifuture = Ifuture[permutation]
+    shuffled_Ycaptions = Ycaptions[permutation]
+    shuffled_Xcaptions = Xcaptions[permutation]
+    
+    # Step 2: Partition (shuffled_X, shuffled_Y). Minus the end case.
+    num_complete_minibatches = math.floor(m/mini_batch_size) # number of mini batches of size mini_batch_size in your partitionning
+    for k in range(0, num_complete_minibatches):
+        mini_batch_H = shuffled_H[k * mini_batch_size : k * mini_batch_size + mini_batch_size]
+        mini_batch_Ipast = shuffled_Ipast[k * mini_batch_size : k * mini_batch_size + mini_batch_size]
+        mini_batch_Ifuture = shuffled_Ifuture[k * mini_batch_size : k * mini_batch_size + mini_batch_size]
+        mini_batch_Ycaptions = shuffled_Ycaptions[k * mini_batch_size : k * mini_batch_size + mini_batch_size]
+        mini_batch_Xcaptions = shuffled_Xcaptions[k * mini_batch_size : k * mini_batch_size + mini_batch_size]
+        mini_batch = (mini_batch_H, mini_batch_Ipast, mini_batch_Ifuture, mini_batch_Ycaptions, mini_batch_Xcaptions)
+        mini_batches.append(mini_batch)
+    
+    # Handling the end case (last mini-batch < mini_batch_size)
+    if m % mini_batch_size != 0:
+        mini_batch_H = shuffled_H[num_complete_minibatches * mini_batch_size : m]
+        mini_batch_Ipast = shuffled_Ipast[num_complete_minibatches * mini_batch_size : m]
+        mini_batch_Ifuture = shuffled_Ifuture[num_complete_minibatches * mini_batch_size : m]
+        mini_batch_Ycaptions = shuffled_Ycaptions[num_complete_minibatches * mini_batch_size : m]
+        mini_batch_Xcaptions = shuffled_Xcaptions[num_complete_minibatches * mini_batch_size : m]
+        mini_batch = (mini_batch_H, mini_batch_Ipast, mini_batch_Ifuture, mini_batch_Ycaptions, mini_batch_Xcaptions)
+        mini_batches.append(mini_batch)
+    
+    return mini_batches
