@@ -13,7 +13,7 @@ import re
 class Config(object):
     num_c3d_features = 500
     num_proposals = 30
-    num_classes = 1048
+    num_classes = 10194
     num_steps = 50
     hidden_dim = 512
     batch_size = 9
