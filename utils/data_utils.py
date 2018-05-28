@@ -69,7 +69,7 @@ def export_vocabulary(train_data):
                      
 def video_preprocess():
     # format
-    train_data = pd.read_csv("/home/martnzjulio_a/songze/SPJ/train_extreme_small.csv")
+    train_data = pd.read_csv("/home/songzeli/SPJ/train_extreme_small.csv")
     train_data.rename( columns={'Unnamed: 0':'index'}, inplace=True )
     train_data["duration"] = train_data["duration"].astype('float32')
     train_data["t_init"], train_data["t_end"] = train_data["timestamps"].str.split(", ", 1).str
@@ -80,7 +80,7 @@ def video_preprocess():
     train_data = train_data.drop('timestamps', 1)
 
     # pool
-    filename = "/home/martnzjulio_a/c3d_data/sub_activitynet_v1-3.c3d.hdf5"
+    filename = "/home/songzeli/Data/sub_activitynet_v1-3.c3d.hdf5"
     video_feature_representation = h5py.File(filename, 'r')
     train_ids = train_data['id'].unique()
     f_inits = []
@@ -145,7 +145,7 @@ def video_preprocess():
     return train_ids,train_data,padded_proposals,padded_framestamps
 
 def caption_preprocess():  
-    train_voc = pd.read_csv("/home/martnzjulio_a/songze/SPJ/train_all.csv")
+    train_voc = pd.read_csv("/home/songzeli/SPJ/train_all.csv")
     train_voc.rename( columns={'Unnamed: 0':'index'}, inplace=True )
     train_voc["duration"] = train_voc["duration"].astype('float32')
     train_voc["t_init"], train_voc["t_end"] = train_voc["timestamps"].str.split(", ", 1).str
@@ -156,7 +156,7 @@ def caption_preprocess():
     train_voc = train_voc.drop('timestamps', 1)
 
     export_vocabulary(train_voc)
-    df = pd.read_csv('/home/martnzjulio_a/songze/SPJ/vocabulary.csv')
+    df = pd.read_csv('/home/songzeli/SPJ/vocabulary.csv')
     voc = df["Unnamed: 0"].tolist()
     vocabulary = []
     for word in voc:
