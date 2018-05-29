@@ -16,22 +16,23 @@ class Config(object):
     num_classes = 10194
     num_steps = 50
     hidden_dim = 512
-    batch_size = 9
     num_layers = 2
     eps = 1e-10
-    model_name = 'num_c3d_features=%d_num_proposals=%d_num_classes=%d_num_steps=%d_hidden_dim=%d_batch_size=%d_layers=%d_eps=%d' % (num_c3d_features, num_proposals, num_classes, num_steps, hidden_dim, batch_size, num_layers, eps)
+    model_name = 'num_c3d_features=%d_num_proposals=%d_num_classes=%d_num_steps=%d_hidden_dim=%d_layers=%d_eps=%d' % (num_c3d_features, num_proposals, num_classes, num_steps, hidden_dim, num_layers, eps)
 
 class SPJ(object):
     
     def __init__(self, config):
         self.config = config
         
+        
         # placeholders
-        self._H=tf.placeholder(tf.float32,shape=[self.config.batch_size,self.config.num_c3d_features,self.config.num_proposals],name="H")
-        self._Ipast=tf.placeholder(tf.float32, shape=[self.config.batch_size, self.config.num_proposals, self.config.num_proposals], name="Ipast")
-        self._Ifuture=tf.placeholder(tf.float32, shape=[self.config.batch_size,self.config.num_proposals,self.config.num_proposals], name="Ifuture")
-        self._x=tf.placeholder(tf.int32,shape=[self.config.batch_size,self.config.num_proposals,self.config.num_steps], name="x")
-        self._y=tf.placeholder(tf.int32,shape=[self.config.batch_size,self.config.num_proposals,self.config.num_steps+1],name="y")
+        self._batchsize = tf.placeholder(tf.int32,shape=())
+        self._H=tf.placeholder(tf.float32,shape=[None,self.config.num_c3d_features,self.config.num_proposals],name="H")
+        self._Ipast=tf.placeholder(tf.float32, shape=[None, self.config.num_proposals, self.config.num_proposals], name="Ipast")
+        self._Ifuture=tf.placeholder(tf.float32, shape=[None,self.config.num_proposals,self.config.num_proposals], name="Ifuture")
+        self._x=tf.placeholder(tf.int32,shape=[None,self.config.num_proposals,self.config.num_steps], name="x")
+        self._y=tf.placeholder(tf.int32,shape=[None,self.config.num_proposals,self.config.num_steps+1],name="y")
 
         # Attention Parameters
         Wa = tf.get_variable("Wa",[self.config.num_c3d_features,self.config.num_c3d_features],initializer=tf.contrib.layers.xavier_initializer(seed=1))
@@ -72,12 +73,12 @@ class SPJ(object):
         lstm_inputs = tf.concat(values=[feature_inputs, embedding_inputs],axis=1) 
         lstm_cell = tf.nn.rnn_cell.LSTMCell(num_units=self.config.hidden_dim,state_is_tuple=True)
         lstm_cells = tf.nn.rnn_cell.MultiRNNCell([lstm_cell] * self.config.num_layers, state_is_tuple=True)
-        initial_state = lstm_cells.zero_state(self.config.batch_size*self.config.num_proposals, tf.float32)
+        initial_state = lstm_cells.zero_state(self._batchsize*self.config.num_proposals, tf.float32)
         lstm_outputs, final_state = tf.nn.dynamic_rnn(cell=lstm_cells,inputs=lstm_inputs,initial_state=initial_state)                                                                          
         logits = tf.layers.dense(inputs=tf.reshape(lstm_outputs,[-1,self.config.hidden_dim]),units=self.config.num_classes)
         predictions = tf.argmax(logits,1)
-        predictions = tf.reshape(predictions, [self.config.batch_size,self.config.num_proposals,self.config.num_steps+1])
-        logits = tf.reshape(logits, [self.config.batch_size,self.config.num_proposals,self.config.num_steps+1,self.config.num_classes])
+        predictions = tf.reshape(predictions, [-1,self.config.num_proposals,self.config.num_steps+1])
+        logits = tf.reshape(logits, [-1,self.config.num_proposals,self.config.num_steps+1,self.config.num_classes])
 
 
         # Predictions

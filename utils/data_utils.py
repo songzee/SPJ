@@ -67,9 +67,9 @@ def export_vocabulary(train_data):
         for val in vocabulary:
             writer.writerow([val])
                      
-def video_preprocess(home_dir):
+def video_preprocess(home_dir, train_file):
     # format
-    train_data = pd.read_csv(home_dir + "/SPJ/train_extreme_small.csv")
+    train_data = pd.read_csv(train_file)
     train_data.rename( columns={'Unnamed: 0':'index'}, inplace=True )
     train_data["duration"] = train_data["duration"].astype('float32')
     train_data["t_init"], train_data["t_end"] = train_data["timestamps"].str.split(", ", 1).str
@@ -138,10 +138,10 @@ def video_preprocess(home_dir):
     train_data = pd.concat([train_data, f_inits, f_ends, max_pooled_representations], axis=1)
     train_data.to_pickle("train_data")
 
-    print("number of examples: ", train_ids.shape[0])
-    print("train_data.shape: ", train_data.shape)
-    print("padded_proposals.shape: ", padded_proposals.shape)
-    print("padded_framestamps.shape: ", padded_framestamps.shape) 
+    #print("number of examples: ", train_ids.shape[0])
+    #print("train_data.shape: ", train_data.shape)
+    #print("padded_proposals.shape: ", padded_proposals.shape)
+    #print("padded_framestamps.shape: ", padded_framestamps.shape) 
     return train_ids,train_data,padded_proposals,padded_framestamps
 
 def caption_preprocess(home_dir):  
