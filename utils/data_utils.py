@@ -17,6 +17,11 @@ def temporal_pooling(features,mode="max"):
     Returns:
     h - shape = (num_features,)
     """
+    #if features.shape[0] == 1:
+    #    return features
+    #print(features.shape)
+    if features.shape[0] == 0:
+        print(features)
     if mode=="max":
         h = np.max(features,axis=0)  
     elif mode=="average":
@@ -70,6 +75,7 @@ def export_vocabulary(train_data):
 def video_preprocess(home_dir, train_file):
     # format
     train_data = pd.read_csv(train_file)
+    num_examples = len(train_data['id'].unique())
     train_data.rename( columns={'Unnamed: 0':'index'}, inplace=True )
     train_data["duration"] = train_data["duration"].astype('float32')
     train_data["t_init"], train_data["t_end"] = train_data["timestamps"].str.split(", ", 1).str
@@ -87,12 +93,14 @@ def video_preprocess(home_dir, train_file):
     f_ends = []
     max_pooled_representations = []
     max_proposals = 0
-    padded_proposals = np.zeros((99,500,30))
-    padded_framestamps = -1*np.ones((99,2,30))
+    padded_proposals = np.zeros((num_examples,500,30))
+    padded_framestamps = -1*np.ones((num_examples,2,30))
     for v,video_id in enumerate(train_ids):
         #print("video id: ", video_id)
         temp = train_data[train_data['id']==video_id].reset_index()
-        C3D_features = video_feature_representation["v_QOlSCBRmfWY"]['c3d_features'].value
+        #C3D_features = video_feature_representation["v_QOlSCBRmfWY"]['c3d_features'].value
+        C3D_features = video_feature_representation[video_id]['c3d_features'].value
+        #print(video_id)
 
         if max_proposals < temp.shape[0]:
             max_proposals = temp.shape[0]
@@ -112,10 +120,12 @@ def video_preprocess(home_dir, train_file):
             #print("f_end: ", f_end, "t_end: ", t_end)
 
             # get max pool
+            #print(f_init)
+            #print(f_end)
             if f_init <= f_end:
-                max_pooled_rep = temporal_pooling(C3D_features[f_init:f_end],"max")
+                max_pooled_rep = temporal_pooling(C3D_features[f_init:f_end+1],"max")
             else:
-                max_pooled_rep = temporal_pooling(C3D_features[f_end:f_init],"max")
+                max_pooled_rep = temporal_pooling(C3D_features[f_end:f_init+1],"max")
 
             # append info
             f_inits.append(f_init)
@@ -276,21 +286,26 @@ def get_padded_sentences_id(pad_len,train_ids, train_data,word2id):
     UNK_ID = 1
     STA_ID = 2
     END_ID = 3
-    all_padded_sentences = np.zeros((99,pad_len,30))
+    num_examples = len(train_ids)
+    all_padded_sentences = np.zeros((num_examples,pad_len,30))
     for v,video_id in enumerate(train_ids):
         temp = train_data[train_data['id']==video_id].reset_index()
         for i in range(temp.shape[0]):
             words,ids = sentence_to_token_ids(temp['sentences'][i][:-1],word2id)
             ids_pad = padded(ids,pad_len)
+            if len(ids_pad) > pad_len:
+                ids_pad = ids_pad[:pad_len]
             all_padded_sentences[v,:,i] = ids_pad
 
 
-    all_padded_sentences_2 = np.zeros((99,pad_len+1,30))
+    all_padded_sentences_2 = np.zeros((num_examples,pad_len+1,30))
     for v,video_id in enumerate(train_ids):
         temp = train_data[train_data['id']==video_id].reset_index()
         for i in range(temp.shape[0]):
             words,ids = sentence_to_token_ids(temp['sentences'][i][:-1],word2id)
             ids_pad = padded(ids,pad_len+1)
+            if len(ids_pad) > pad_len:
+                ids_pad = ids_pad[:pad_len+1]
             all_padded_sentences_2[v,:,i] = ids_pad
     all_padded_sentences_id = np.array(all_padded_sentences).astype(int)
             
@@ -355,3 +370,12 @@ def random_mini_batches(H, Ipast, Ifuture, Ycaptions, Xcaptions, mini_batch_size
         mini_batches.append(mini_batch)
     
     return mini_batches
+
+
+def sample(a, temperature=1.0):
+    # helper function to sample an index from a probability array
+    # from https://github.com/fchollet/keras/blob/master/examples/lstm_text_generation.py
+    a = np.log(a+1e-10) / (temperature+1e-10)
+    a = np.exp(a) / (np.sum(np.exp(a))+1e-10)
+    return np.argmax(np.random.multinomial(1, a, 1))
+#     return np.argmax(a)

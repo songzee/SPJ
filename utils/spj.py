@@ -9,6 +9,8 @@ from utils.data_utils import temporal_pooling
 from utils.data_utils import export_vocabulary
 import sys
 import re
+import numpy as np
+from utils.data_utils import sample
 
 class Config(object):
     num_c3d_features = 500
@@ -88,8 +90,30 @@ class SPJ(object):
         # loss
         loss = tf.reduce_sum(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=tf.reshape(logits,[-1,self.config.num_classes]), labels=tf.reshape(self._y,[-1])))
         self.loss = loss
-
+       
+    def caption_generation(self,sess,minibatch_H,minibatch_Ipast,minibatch_Ifuture,minibatch_Xcaptions,minibatch_Ycaptions):
+        batch_size = minibatch_H.shape[0]
+        sent_pred = np.ones([batch_size,self.config.num_proposals,1])*2 # <START>
+        prev_caption = np.zeros(minibatch_Xcaptions.shape)
+        while sent_pred.shape[2] < self.config.num_steps: 
+            prev_caption[:,:,:sent_pred.shape[2]] = sent_pred
+            idx_next_pred = sent_pred.shape[2]+1
+            logits = sess.run([self.logits], 
+                      feed_dict={self._H: minibatch_H, self._Ipast: minibatch_Ipast, 
+                                 self._Ifuture: minibatch_Ifuture, self._x: prev_caption, 
+                                 self._y: minibatch_Ycaptions,
+                                 self._batchsize: minibatch_H.shape[0]})
+            logits = logits[0]
+            next_logits = logits[:,:,idx_next_pred,:]
+            raw_predicted = np.zeros([next_logits.shape[0],next_logits.shape[1],1])
+            for batch_idx in range(next_logits.shape[0]):
+                for proposal_idx in range(next_logits.shape[1]):
+                    idx = sample(next_logits[batch_idx,proposal_idx,:])
+#                     print(next_logits[batch_idx,proposal_idx,:])
+                    print(idx)
+                    raw_predicted[batch_idx,proposal_idx] = idx
+            raw_predicted = np.array(raw_predicted)
+            sent_pred = np.concatenate([sent_pred, raw_predicted], 2)
+            print(sent_pred.shape)
+        return sent_pred
     
-
-
-
