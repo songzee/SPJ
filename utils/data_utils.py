@@ -381,7 +381,7 @@ def id_2_one_hot_void_padding(y, num_classes, void_dim=-1):
     return: 
      one_hot with dimension void_dim set to zero
     '''
-    batchsize, dim1, dim2 = x.shape
+    batchsize, dim1, dim2 = y.shape
     y = y.flatten()
     one_hot = np.zeros((batchsize*dim1*dim2,num_classes))
     one_hot[np.arange(len(y)), y] = 1.0

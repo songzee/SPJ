@@ -4,9 +4,7 @@ import pandas as pd
 import csv
 import copy
 import math
-from utils.data_utils import temporal_indicator
-from utils.data_utils import temporal_pooling
-from utils.data_utils import export_vocabulary
+from utils.data_utils import *
 import sys
 import re
 import numpy as np
@@ -16,7 +14,7 @@ class Config(object):
     num_c3d_features = 500
     num_proposals = 30
     num_classes = 10194
-    num_steps = 50
+    num_steps = 50 
     hidden_dim = 512
     num_layers = 2
     eps = 1e-10
@@ -35,9 +33,11 @@ class SPJ(object):
         self._Ifuture=tf.placeholder(tf.float32, shape=[None,self.config.num_proposals,self.config.num_proposals], name="Ifuture")
         self._x=tf.placeholder(tf.int32,shape=[None,self.config.num_proposals,self.config.num_steps], name="x")
         #self._y=tf.placeholder(tf.int32,shape=[None,self.config.num_proposals,self.config.num_steps+1],name="y")
-        self._y=tf.placeholder(tf.int32,shape=[None,self.config.num_proposals,self.config.num_steps+1,self.config.num_classes],name="y")
+        self._y=tf.placeholder(tf.float32,shape=[None,self.config.num_proposals,self.config.num_steps+1,self.config.num_classes],name="y")
 
-        # Attention Parameters
+        # Begin Attention Module
+        # -----------------------
+        
         Wa = tf.get_variable("Wa",[self.config.num_c3d_features,self.config.num_c3d_features],initializer=tf.contrib.layers.xavier_initializer(seed=1))
         ba = tf.get_variable("ba", [self.config.num_c3d_features, 1], initializer = tf.zeros_initializer())
 
@@ -60,8 +60,15 @@ class SPJ(object):
 
         # Stacked Features
         Hout = tf.concat([Hpast, self._H, Hfuture], 1)
+        
+        # End Attention Module
+        # -----------------------
 
-        # Reshape Hout
+        
+        
+        # Begin Captioning Module
+        # -----------------------
+        
         Hout = tf.transpose(Hout, perm=[0,2,1])
         Hout = tf.reshape(Hout, [-1, 3*self.config.num_c3d_features]) 
 
@@ -80,6 +87,11 @@ class SPJ(object):
         lstm_outputs, final_state = tf.nn.dynamic_rnn(cell=lstm_cells,inputs=lstm_inputs,initial_state=initial_state)                                                                          
         logits = tf.layers.dense(inputs=tf.reshape(lstm_outputs,[-1,self.config.hidden_dim]),units=self.config.num_classes)
         predictions = tf.argmax(logits,1)
+        
+        # End Captioning Module
+        # -----------------------
+        
+        
         #logits = tf.reshape(logits, [-1,self.config.num_proposals,self.config.num_steps+1,self.config.num_classes])
 
 
@@ -92,15 +104,17 @@ class SPJ(object):
         #self.loss = loss
         
         # loss function
-        softmax = tf.softmax(logits,axis=1)
-        cross_entropy = tf.reshape(self._y,shape=[-1,num_classes])*tf.log(softmax)
-        self.loss = loss = -tf.reduce_sum(tf.reduce_sum(cross_entropy),axis=1))
+        softmax = tf.nn.softmax(logits,axis=1)
+        cross_entropy = tf.reshape(self._y,shape=[-1,self.config.num_classes])*tf.log(softmax)
+        self.loss = loss = -tf.reduce_sum(tf.reduce_sum(cross_entropy,axis=1))
         
     
     def caption_generation(self,sess,minibatch_H,minibatch_Ipast,minibatch_Ifuture,minibatch_Xcaptions,minibatch_Ycaptions):
+        minibatch_Ycaptions = id_2_one_hot_void_padding(minibatch_Ycaptions, self.config.num_classes, void_dim=0)
         batch_size = minibatch_H.shape[0]
         sent_pred = np.ones([batch_size,self.config.num_proposals,1])*2 # <START>
         prev_caption = np.zeros(minibatch_Xcaptions.shape)
+        
         while sent_pred.shape[2] < self.config.num_steps: 
             prev_caption[:,:,:sent_pred.shape[2]] = sent_pred
             idx_next_pred = sent_pred.shape[2]+1
