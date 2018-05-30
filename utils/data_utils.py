@@ -371,6 +371,25 @@ def random_mini_batches(H, Ipast, Ifuture, Ycaptions, Xcaptions, mini_batch_size
     
     return mini_batches
 
+def id_2_one_hot_void_padding(y, num_classes, void_dim=-1):
+    '''
+    input: 
+     y.shape = [batchsize, dim1, dim2], where each element is the class id
+     num_classes: number of classes
+     void_dim: the class you want to zero out or -1 if not zeroing out
+    
+    return: 
+     one_hot with dimension void_dim set to zero
+    '''
+    batchsize, dim1, dim2 = x.shape
+    y = y.flatten()
+    one_hot = np.zeros((batchsize*dim1*dim2,num_classes))
+    one_hot[np.arange(len(y)), y] = 1.0
+    if void_dim > -1:
+        one_hot[:,void_dim] = 0.0
+    one_hot = one_hot.reshape((batchsize,dim1,dim2,num_classes))
+    return one_hot
+
 
 def sample(a, temperature=1.0):
     # helper function to sample an index from a probability array

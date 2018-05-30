@@ -34,7 +34,8 @@ class SPJ(object):
         self._Ipast=tf.placeholder(tf.float32, shape=[None, self.config.num_proposals, self.config.num_proposals], name="Ipast")
         self._Ifuture=tf.placeholder(tf.float32, shape=[None,self.config.num_proposals,self.config.num_proposals], name="Ifuture")
         self._x=tf.placeholder(tf.int32,shape=[None,self.config.num_proposals,self.config.num_steps], name="x")
-        self._y=tf.placeholder(tf.int32,shape=[None,self.config.num_proposals,self.config.num_steps+1],name="y")
+        #self._y=tf.placeholder(tf.int32,shape=[None,self.config.num_proposals,self.config.num_steps+1],name="y")
+        self._y=tf.placeholder(tf.int32,shape=[None,self.config.num_proposals,self.config.num_steps+1,self.config.num_classes],name="y")
 
         # Attention Parameters
         Wa = tf.get_variable("Wa",[self.config.num_c3d_features,self.config.num_c3d_features],initializer=tf.contrib.layers.xavier_initializer(seed=1))
@@ -79,18 +80,23 @@ class SPJ(object):
         lstm_outputs, final_state = tf.nn.dynamic_rnn(cell=lstm_cells,inputs=lstm_inputs,initial_state=initial_state)                                                                          
         logits = tf.layers.dense(inputs=tf.reshape(lstm_outputs,[-1,self.config.hidden_dim]),units=self.config.num_classes)
         predictions = tf.argmax(logits,1)
-        predictions = tf.reshape(predictions, [-1,self.config.num_proposals,self.config.num_steps+1])
-        logits = tf.reshape(logits, [-1,self.config.num_proposals,self.config.num_steps+1,self.config.num_classes])
+        #logits = tf.reshape(logits, [-1,self.config.num_proposals,self.config.num_steps+1,self.config.num_classes])
 
 
         # Predictions
-        self.logits = logits
-        self._predictions = predictions
+        self.logits = tf.reshape(logits, [-1,self.config.num_proposals,self.config.num_steps+1,self.config.num_classes])
+        self._predictions = tf.reshape(predictions, [-1,self.config.num_proposals,self.config.num_steps+1])
 
         # loss
-        loss = tf.reduce_sum(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=tf.reshape(logits,[-1,self.config.num_classes]), labels=tf.reshape(self._y,[-1])))
-        self.loss = loss
-       
+        #loss = tf.reduce_sum(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=tf.reshape(logits,[-1,self.config.num_classes]), labels=tf.reshape(self._y,[-1])))
+        #self.loss = loss
+        
+        # loss function
+        softmax = tf.softmax(logits,axis=1)
+        cross_entropy = tf.reshape(self._y,shape=[-1,num_classes])*tf.log(softmax)
+        self.loss = loss = -tf.reduce_sum(tf.reduce_sum(cross_entropy),axis=1))
+        
+    
     def caption_generation(self,sess,minibatch_H,minibatch_Ipast,minibatch_Ifuture,minibatch_Xcaptions,minibatch_Ycaptions):
         batch_size = minibatch_H.shape[0]
         sent_pred = np.ones([batch_size,self.config.num_proposals,1])*2 # <START>
