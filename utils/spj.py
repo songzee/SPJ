@@ -14,11 +14,12 @@ class Config(object):
     num_c3d_features = 500
     num_proposals = 30
     num_classes = 10194
-    num_steps = 50 
+    num_steps = 50
+    batch_size = 32
     hidden_dim = 512
     num_layers = 2
     eps = 1e-10
-    model_name = 'num_c3d_features=%d_num_proposals=%d_num_classes=%d_num_steps=%d_hidden_dim=%d_layers=%d_eps=%d' % (num_c3d_features, num_proposals, num_classes, num_steps, hidden_dim, num_layers, eps)
+    model_name = 'num_c3d_features=%d_num_proposals=%d_num_classes=%d_num_steps=%d_batch_size=%d_hidden_dim=%d_layers=%d_eps=%d' % (num_c3d_features, num_proposals, num_classes, num_steps, batch_size, hidden_dim, num_layers, eps)
 
 class SPJ(object):
     
@@ -27,13 +28,12 @@ class SPJ(object):
         
         
         # placeholders
-        self._batchsize = tf.placeholder(tf.int32,shape=())
-        self._H=tf.placeholder(tf.float32,shape=[None,self.config.num_c3d_features,self.config.num_proposals],name="H")
-        self._Ipast=tf.placeholder(tf.float32, shape=[None, self.config.num_proposals, self.config.num_proposals], name="Ipast")
-        self._Ifuture=tf.placeholder(tf.float32, shape=[None,self.config.num_proposals,self.config.num_proposals], name="Ifuture")
-        self._x=tf.placeholder(tf.int32,shape=[None,self.config.num_proposals,self.config.num_steps], name="x")
-        #self._y=tf.placeholder(tf.int32,shape=[None,self.config.num_proposals,self.config.num_steps+1],name="y")
-        self._y=tf.placeholder(tf.float32,shape=[None,self.config.num_proposals,self.config.num_steps+1,self.config.num_classes],name="y")
+        self._batch_size = tf.placeholder(tf.int32,shape=())
+        self._H=tf.placeholder(tf.float32,shape=[self.config.batch_size,self.config.num_c3d_features,self.config.num_proposals],name="H")
+        self._Ipast=tf.placeholder(tf.float32, shape=[self.config.batch_size, self.config.num_proposals, self.config.num_proposals], name="Ipast")
+        self._Ifuture=tf.placeholder(tf.float32, shape=[self.config.batch_size,self.config.num_proposals,self.config.num_proposals], name="Ifuture")
+        self._x=tf.placeholder(tf.int32,shape=[self.config.batch_size,self.config.num_proposals,None], name="x")
+        self._y=tf.placeholder(tf.float32,shape=[self.config.batch_size,self.config.num_proposals,None,self.config.num_classes],name="y")
 
         # Begin Attention Module
         # -----------------------
@@ -77,13 +77,13 @@ class SPJ(object):
 
         # Trainable Word Embeddings
         embeddings = tf.get_variable('embedding_matrix', [self.config.num_classes, self.config.hidden_dim])
-        embedding_inputs = tf.nn.embedding_lookup(embeddings, tf.reshape(self._x,[-1,self.config.num_steps]))
+        embedding_inputs = tf.nn.embedding_lookup(embeddings, tf.reshape(self._x,[self.config.batch_size*self.config.num_proposals,-1]))
 
         # LSTM Layer
         lstm_inputs = tf.concat(values=[feature_inputs, embedding_inputs],axis=1) 
         lstm_cell = tf.nn.rnn_cell.LSTMCell(num_units=self.config.hidden_dim,state_is_tuple=True)
         lstm_cells = tf.nn.rnn_cell.MultiRNNCell([lstm_cell] * self.config.num_layers, state_is_tuple=True)
-        initial_state = lstm_cells.zero_state(self._batchsize*self.config.num_proposals, tf.float32)
+        initial_state = lstm_cells.zero_state(self.config.batch_size*self.config.num_proposals, tf.float32)
         lstm_outputs, final_state = tf.nn.dynamic_rnn(cell=lstm_cells,inputs=lstm_inputs,initial_state=initial_state)                                                                          
         logits = tf.layers.dense(inputs=tf.reshape(lstm_outputs,[-1,self.config.hidden_dim]),units=self.config.num_classes)
         predictions = tf.argmax(logits,1)
@@ -96,8 +96,8 @@ class SPJ(object):
 
 
         # Predictions
-        self.logits = tf.reshape(logits, [-1,self.config.num_proposals,self.config.num_steps+1,self.config.num_classes])
-        self._predictions = tf.reshape(predictions, [-1,self.config.num_proposals,self.config.num_steps+1])
+        self.logits = tf.reshape(logits, [self.config.batch_size,self.config.num_proposals,-1,self.config.num_classes])
+        self._predictions = tf.reshape(predictions, [self.config.batch_size,self.config.num_proposals,-1])
 
         # loss
         #loss = tf.reduce_sum(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=tf.reshape(logits,[-1,self.config.num_classes]), labels=tf.reshape(self._y,[-1])))
@@ -114,6 +114,7 @@ class SPJ(object):
         batch_size = minibatch_H.shape[0]
         sent_pred = np.ones([batch_size,self.config.num_proposals,1])*2 # <START>
         prev_caption = np.zeros(minibatch_Xcaptions.shape)
+        ind = [i for i in range(self.config.num_classes)]
         
         while sent_pred.shape[2] < self.config.num_steps: 
             prev_caption[:,:,:sent_pred.shape[2]] = sent_pred
@@ -136,4 +137,29 @@ class SPJ(object):
             sent_pred = np.concatenate([sent_pred, raw_predicted], 2)
             print(sent_pred.shape)
         return sent_pred
+    
+    def generate_caption_2(self, session, H, Ipast, Ifuture):        
+        batchsize = H.shape[0]
+        assert (batchsize == self.config.batch_size),"batch sizes do not match!"
+        x = np.ones([batchsize, self.config.num_proposals, 1])*2 # b'<sta>': 2
+        y = np.ones([batchsize, self.config.num_proposals,1,self.config.num_classes])
+        while (x.shape[2] - 1) < 3: 
+            feed = {self._H: H,
+                    self._Ipast: Ipast,
+                    self._Ifuture: Ifuture,
+                    self._x: x,
+                    self._y: y,
+                    self._batch_size: batchsize,
+                   }
+            
+            predictions = session.run(self._predictions, feed_dict=feed)
+            next_x = predictions[:,:,-1]
+            next_x = np.expand_dims(next_x, axis=2)
+            print("predictions: ",predictions.shape)
+            print("next_x: ", next_x.shape)  
+            print("x: ", x.shape)
+            x = np.concatenate((x,next_x),axis=2)
+            print("x: ", x.shape)
+        #predicted_sentence = ' '.join(self.index2token[idx] for idx in sent_pred[0,1:-1])
+        return 0
     

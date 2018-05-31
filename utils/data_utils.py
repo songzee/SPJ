@@ -5,6 +5,7 @@ import string
 import h5py
 import re
 import math
+from sklearn.utils.extmath import softmax
 
 def temporal_pooling(features,mode="max"):
     """
@@ -167,7 +168,8 @@ def caption_preprocess(home_dir):
 
     export_vocabulary(train_voc)
     df = pd.read_csv(home_dir + '/SPJ/vocabulary.csv')
-    voc = df["Unnamed: 0"].tolist()
+    header_name = list(df.columns.values)[0]
+    voc = df[header_name].tolist()
     vocabulary = []
     for word in voc:
         if word.isalpha():
@@ -391,10 +393,20 @@ def id_2_one_hot_void_padding(y, num_classes, void_dim=-1):
     return one_hot
 
 
-def sample(a, temperature=1.0):
+def sample(a, temperature=2.0):
     # helper function to sample an index from a probability array
     # from https://github.com/fchollet/keras/blob/master/examples/lstm_text_generation.py
-    a = np.log(a+1e-10) / (temperature+1e-10)
-    a = np.exp(a) / (np.sum(np.exp(a))+1e-10)
-    return np.argmax(np.random.multinomial(1, a, 1))
-#     return np.argmax(a)
+    a[a < 0] = 0
+    a = np.log(a) / (temperature)
+    b = np.exp(a) / (np.sum(np.exp(a)))
+    i = 1
+    while(sum(b)>1):
+        b[-i] = 0
+        i +=1
+    print(b)
+    return np.argmax(np.random.multinomial(1, b, 1))
+# def sample(a,ind):
+#     a = np.expand_dims(a,axis=0)
+#     b = softmax(a)
+#     b = np.squeeze(b,axis=0)
+#     return np.argmax(np.random.choice(ind,p = b))
