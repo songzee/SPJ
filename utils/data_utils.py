@@ -313,7 +313,7 @@ def get_padded_sentences_id(pad_len,train_ids, train_data,word2id):
             
     return all_padded_sentences,all_padded_sentences_2,all_padded_sentences_id
 
-def random_mini_batches(H, Ipast, Ifuture, Ycaptions, Xcaptions, mini_batch_size = 9, seed = 0):
+def random_mini_batches(VideoIds, Framestamps, H, Ipast, Ifuture, Ycaptions, Xcaptions, mini_batch_size = 9, seed = 0):
     """
     Creates a list of random minibatches from (H, Ipast, Ifuture, Ycaptions, Xcaptions)
     
@@ -344,6 +344,8 @@ def random_mini_batches(H, Ipast, Ifuture, Ycaptions, Xcaptions, mini_batch_size
     
     # Step 1: Shuffle (H, Ipast, Ifuture, Ycaptions, Xcaptions)
     permutation = list(np.random.permutation(m))
+    shuffled_VideoIds = VideoIds[permutation]
+    shuffled_Framestamps = Framestamps[permutation]
     shuffled_H = H[permutation]
     shuffled_Ipast = Ipast[permutation]
     shuffled_Ifuture = Ifuture[permutation]
@@ -353,22 +355,26 @@ def random_mini_batches(H, Ipast, Ifuture, Ycaptions, Xcaptions, mini_batch_size
     # Step 2: Partition (shuffled_X, shuffled_Y). Minus the end case.
     num_complete_minibatches = math.floor(m/mini_batch_size) # number of mini batches of size mini_batch_size in your partitionning
     for k in range(0, num_complete_minibatches):
+        mini_batch_VideoIds = shuffled_VideoIds[k * mini_batch_size : k * mini_batch_size + mini_batch_size]
+        mini_batch_Framestamps = shuffled_Framestamps[k * mini_batch_size : k * mini_batch_size + mini_batch_size]
         mini_batch_H = shuffled_H[k * mini_batch_size : k * mini_batch_size + mini_batch_size]
         mini_batch_Ipast = shuffled_Ipast[k * mini_batch_size : k * mini_batch_size + mini_batch_size]
         mini_batch_Ifuture = shuffled_Ifuture[k * mini_batch_size : k * mini_batch_size + mini_batch_size]
         mini_batch_Ycaptions = shuffled_Ycaptions[k * mini_batch_size : k * mini_batch_size + mini_batch_size]
         mini_batch_Xcaptions = shuffled_Xcaptions[k * mini_batch_size : k * mini_batch_size + mini_batch_size]
-        mini_batch = (mini_batch_H, mini_batch_Ipast, mini_batch_Ifuture, mini_batch_Ycaptions, mini_batch_Xcaptions)
+        mini_batch = (mini_batch_VideoIds, mini_batch_Framestamps, mini_batch_H, mini_batch_Ipast, mini_batch_Ifuture, mini_batch_Ycaptions, mini_batch_Xcaptions)
         mini_batches.append(mini_batch)
     
     # Handling the end case (last mini-batch < mini_batch_size)
     if m % mini_batch_size != 0:
+        mini_batch_VideoIds = shuffled_VideoIds[num_complete_minibatches * mini_batch_size : m]
+        mini_batch_Framestamps = shuffled_Framestamps[num_complete_minibatches * mini_batch_size : m]
         mini_batch_H = shuffled_H[num_complete_minibatches * mini_batch_size : m]
         mini_batch_Ipast = shuffled_Ipast[num_complete_minibatches * mini_batch_size : m]
         mini_batch_Ifuture = shuffled_Ifuture[num_complete_minibatches * mini_batch_size : m]
         mini_batch_Ycaptions = shuffled_Ycaptions[num_complete_minibatches * mini_batch_size : m]
         mini_batch_Xcaptions = shuffled_Xcaptions[num_complete_minibatches * mini_batch_size : m]
-        mini_batch = (mini_batch_H, mini_batch_Ipast, mini_batch_Ifuture, mini_batch_Ycaptions, mini_batch_Xcaptions)
+        mini_batch = (mini_batch_VideoIds, mini_batch_Framestamps, mini_batch_H, mini_batch_Ipast, mini_batch_Ifuture, mini_batch_Ycaptions, mini_batch_Xcaptions)
         mini_batches.append(mini_batch)
     
     return mini_batches
@@ -410,3 +416,12 @@ def sample(a, temperature=2.0):
 #     b = softmax(a)
 #     b = np.squeeze(b,axis=0)
 #     return np.argmax(np.random.choice(ind,p = b))
+
+def print_pred_and_labels(predictions, labels, videoids, id2word, example=0, proposal=0):
+    num_steps = predictions.shape[2]
+    print()
+    print('{:20.20}'.format('VIDEO ID'),'{:20.20}'.format('PREDICTION'), '{:20.20}'.format('LABEL'))
+    print('{:20.20}'.format('--------'), '{:20.20}'.format('-----'), '{:20.20}'.format('-----'))
+    for i in range(num_steps):
+        print('{:20.20}'.format(str(videoids[example])),'{:20.20}'.format(str(id2word[predictions[example,proposal,i]]) ), '{:20.20}'.format(str(id2word[labels[example,proposal,i]])))
+    return 0

@@ -17,7 +17,7 @@ class Config(object):
     num_steps = 50
     batch_size = 32
     hidden_dim = 512
-    num_layers = 2
+    num_layers = 1
     eps = 1e-10
     model_name = 'num_c3d_features=%d_num_proposals=%d_num_classes=%d_num_steps=%d_batch_size=%d_hidden_dim=%d_layers=%d_eps=%d' % (num_c3d_features, num_proposals, num_classes, num_steps, batch_size, hidden_dim, num_layers, eps)
 
@@ -27,39 +27,60 @@ class SPJ(object):
         self.config = config
         
         
-        # placeholders
+        # Placeholders
         self._batch_size = tf.placeholder(tf.int32,shape=())
         self._H=tf.placeholder(tf.float32,shape=[self.config.batch_size,self.config.num_c3d_features,self.config.num_proposals],name="H")
         self._Ipast=tf.placeholder(tf.float32, shape=[self.config.batch_size, self.config.num_proposals, self.config.num_proposals], name="Ipast")
         self._Ifuture=tf.placeholder(tf.float32, shape=[self.config.batch_size,self.config.num_proposals,self.config.num_proposals], name="Ifuture")
         self._x=tf.placeholder(tf.int32,shape=[self.config.batch_size,self.config.num_proposals,None], name="x")
         self._y=tf.placeholder(tf.float32,shape=[self.config.batch_size,self.config.num_proposals,None,self.config.num_classes],name="y")
-
-        # Begin Attention Module
-        # -----------------------
         
+        # Parameters
         Wa = tf.get_variable("Wa",[self.config.num_c3d_features,self.config.num_c3d_features],initializer=tf.contrib.layers.xavier_initializer(seed=1))
         ba = tf.get_variable("ba", [self.config.num_c3d_features, 1], initializer = tf.zeros_initializer())
 
+        # Begin Attention Module
+        # -----------------------
+        H2 = tf.transpose(self._H,perm=[1,2,0])
+        H3 = tf.reshape(H2,shape=[self.config.num_c3d_features,self.config.num_proposals*self.config.batch_size])
+        W = tf.matmul(Wa, H3) + ba 
+        W = tf.reshape(W, shape=[self.config.num_c3d_features,self.config.num_proposals, self.config.batch_size]) 
+        W = tf.transpose(W,perm=[2,1,0])       # shape = [batch_size, num_proposals, num_c3d_features]
+        A = tf.matmul(W,self._H)               # shape = [batch_size, num_proposals, num_proposals]
+        Apast =   tf.multiply(A,self._Ipast)
+        Afuture = tf.multiply(A,self._Ifuture)
+        Zpast =   tf.reduce_sum(self._Ipast,   axis=2) + self.config.eps
+        Zfuture = tf.reduce_sum(self._Ifuture, axis=2) + self.config.eps
+        Zpast2 =   tf.reshape(Zpast,   shape=[self.config.batch_size, 1, self.config.num_proposals])
+        Zfuture2 = tf.reshape(Zfuture, shape=[self.config.batch_size, 1, self.config.num_proposals])
+        Hpast = tf.matmul(self._H,tf.transpose(Apast,perm=[0,2,1])) / Zpast2
+        Hfuture = tf.matmul(self._H,tf.transpose(Afuture,perm=[0,2,1])) / Zfuture2
+        Hout = tf.concat([Hpast, self._H, Hfuture], 1)
+        # End Attention Module
+        # -----------------------
+        
+        #Wa = tf.get_variable("Wa",[self.config.num_c3d_features,self.config.num_c3d_features],initializer=tf.contrib.layers.xavier_initializer(seed=1))
+        #ba = tf.get_variable("ba", [self.config.num_c3d_features, 1], initializer = tf.zeros_initializer())
+
         # Forward Pass
-        W = tf.transpose(tf.tensordot(Wa,tf.transpose(self._H,perm=[1,2,0]),axes=[[1], [0]]),perm=[2,0,1]) + ba # shape: [None,num_proposals,num_proposals]
-        A = tf.matmul(tf.transpose(W,perm=[0,2,1]),self._H) # shape: [None,num_proposals,num_proposals]
-        A_flat = tf.reshape(A, [-1, self.config.num_proposals*self.config.num_proposals]) 
+        #W = tf.transpose(tf.tensordot(Wa,tf.transpose(self._H,perm=[1,2,0]),axes=[[1], [0]]),perm=[2,0,1]) + ba # shape: [None,num_proposals,num_proposals]
+        #A = tf.matmul(tf.transpose(W,perm=[0,2,1]),self._H) # shape: [None,num_proposals,num_proposals]
+        #A_flat = tf.reshape(A, [-1, self.config.num_proposals*self.config.num_proposals]) 
 
         # Future Features
-        Ifuture_flat = tf.reshape(self._Ifuture, [-1, self.config.num_proposals*self.config.num_proposals]) # shape: [None,K*K]
-        Afuture = tf.reshape(tf.multiply(Ifuture_flat,A_flat),[-1, self.config.num_proposals, self.config.num_proposals]) # shape: [None,K,K]
-        Zfuture = tf.reduce_sum(self._Ifuture,axis=2) + self.config.eps # shape: [None,num_proposals]
-        Hfuture = tf.transpose(tf.transpose(tf.matmul(self._H,tf.transpose(Afuture,perm=[0,2,1])),perm=[1,0,2])/Zfuture,perm=[1,0,2]) # shape: [None,num_c3d_features,num_proposals]
+        #Ifuture_flat = tf.reshape(self._Ifuture, [-1, self.config.num_proposals*self.config.num_proposals]) # shape: [None,K*K]
+        #Afuture = tf.reshape(tf.multiply(Ifuture_flat,A_flat),[-1, self.config.num_proposals, self.config.num_proposals]) # shape: [None,K,K]
+        #Zfuture = tf.reduce_sum(self._Ifuture,axis=2) + self.config.eps # shape: [None,num_proposals]
+        #Hfuture = tf.transpose(tf.transpose(tf.matmul(self._H,tf.transpose(Afuture,perm=[0,2,1])),perm=[1,0,2])/Zfuture,perm=[1,0,2]) # shape: [None,num_c3d_features,num_proposals]
 
         # Past Features
-        Ipast_flat = tf.reshape(self._Ipast, [-1, self.config.num_proposals*self.config.num_proposals]) # shape: [None,num_proposals*num_proposals]
-        Apast = tf.reshape(tf.multiply(Ipast_flat,A_flat),[-1,self.config.num_proposals, self.config.num_proposals]) # shape: [None,num_proposals,num_proposals]
-        Zpast = tf.reduce_sum(self._Ipast, axis=2) + self.config.eps # shape: [None,num_proposals]
-        Hpast = tf.transpose(tf.transpose(tf.matmul(self._H,tf.transpose(Apast,perm=[0,2,1])),perm=[1,0,2])/Zfuture,perm=[1,0,2]) # shape: [None,num_c3d_features,num_proposals]
+        #Ipast_flat = tf.reshape(self._Ipast, [-1, self.config.num_proposals*self.config.num_proposals]) # shape: [None,num_proposals*num_proposals]
+        #Apast = tf.reshape(tf.multiply(Ipast_flat,A_flat),[-1,self.config.num_proposals, self.config.num_proposals]) # shape: [None,num_proposals,num_proposals]
+        #Zpast = tf.reduce_sum(self._Ipast, axis=2) + self.config.eps # shape: [None,num_proposals]
+        #Hpast = tf.transpose(tf.transpose(tf.matmul(self._H,tf.transpose(Apast,perm=[0,2,1])),perm=[1,0,2])/Zfuture,perm=[1,0,2]) # shape: [None,num_c3d_features,num_proposals]
 
         # Stacked Features
-        Hout = tf.concat([Hpast, self._H, Hfuture], 1)
+        #Hout = tf.concat([Hpast, self._H, Hfuture], 1)
         
         # End Attention Module
         # -----------------------
@@ -123,7 +144,7 @@ class SPJ(object):
                       feed_dict={self._H: minibatch_H, self._Ipast: minibatch_Ipast, 
                                  self._Ifuture: minibatch_Ifuture, self._x: prev_caption, 
                                  self._y: minibatch_Ycaptions,
-                                 self._batchsize: minibatch_H.shape[0]})
+                                 self._batch_size: minibatch_H.shape[0]})
             logits = logits[0]
             next_logits = logits[:,:,idx_next_pred,:]
             raw_predicted = np.zeros([next_logits.shape[0],next_logits.shape[1],1])
@@ -138,28 +159,22 @@ class SPJ(object):
             print(sent_pred.shape)
         return sent_pred
     
-    def generate_caption_2(self, session, H, Ipast, Ifuture):        
+    def generate_caption_2(self, session, H, Ipast, Ifuture, labels):        
         batchsize = H.shape[0]
         assert (batchsize == self.config.batch_size),"batch sizes do not match!"
         x = np.ones([batchsize, self.config.num_proposals, 1])*2 # b'<sta>': 2
-        y = np.ones([batchsize, self.config.num_proposals,1,self.config.num_classes])
-        while (x.shape[2] - 1) < 3: 
+        y = np.ones([batchsize, self.config.num_proposals,2,self.config.num_classes])
+        while (x.shape[2] - 1) < self.config.num_steps: 
             feed = {self._H: H,
                     self._Ipast: Ipast,
                     self._Ifuture: Ifuture,
                     self._x: x,
                     self._y: y,
-                    self._batch_size: batchsize,
-                   }
-            
+                    self._batch_size: batchsize}
             predictions = session.run(self._predictions, feed_dict=feed)
             next_x = predictions[:,:,-1]
             next_x = np.expand_dims(next_x, axis=2)
-            print("predictions: ",predictions.shape)
-            print("next_x: ", next_x.shape)  
-            print("x: ", x.shape)
             x = np.concatenate((x,next_x),axis=2)
-            print("x: ", x.shape)
-        #predicted_sentence = ' '.join(self.index2token[idx] for idx in sent_pred[0,1:-1])
-        return 0
+            y = np.ones([batchsize, self.config.num_proposals,x.shape[2]+1,self.config.num_classes])
+        return predictions, labels
     
