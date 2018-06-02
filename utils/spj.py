@@ -10,8 +10,9 @@ import re
 import numpy as np
 from utils.data_utils import sample
 
-def lstm_cell(hidden_dim):
+def lstm_cell(hidden_dim, p_dropout):
         lstm = tf.nn.rnn_cell.LSTMCell(num_units=hidden_dim,state_is_tuple=True)
+        lstm_dropout = tf.nn.rnn_cell.DropoutWrapper(lstm, input_keep_prob=p_dropout, output_keep_prob=p_dropout)
         return lstm
 
 class Config(object):
@@ -31,9 +32,6 @@ class SPJ(object):
         self.config = config
         
         # Placeholders
-        self._batch_size = tf.placeholder(
-            dtype=tf.int32,shape=()
-        )
         self._H=tf.placeholder(
             dtype=tf.float32,
             shape=[self.config.batch_size,self.config.num_c3d_features,self.config.num_proposals],
@@ -58,6 +56,9 @@ class SPJ(object):
             dtype=tf.float32,
             shape=[self.config.batch_size,self.config.num_proposals,None,self.config.num_classes],
             name="y")
+        self._keep_prob=tf.placeholder(
+            dtype=tf.int32,shape=()
+        )
         
         # Parameters
         Wa = tf.get_variable(
@@ -97,11 +98,9 @@ class SPJ(object):
         Hout2 = tf.transpose(Hout, perm=[0,2,1]) # shape = [batch_size, num_proposals, num_c3d_features*3]
         Hout3 = tf.reshape(Hout2, [-1, 3*self.config.num_c3d_features]) # shape = [batch_size*num_proposals, 3*num_c3d_features]
         feature_inputs = tf.expand_dims(Hout3,1)
-        print("feature_inputs.shape: ", feature_inputs.get_shape().as_list())
 
-        # FC Layer from num_c3d_features to hidden_dim, feature_inputs.shape=[-1, 1, 512]
+        ## Removed: FC Layer from num_c3d_features to hidden_dim, feature_inputs.shape=[-1, 1, 512]
         #feature_inputs = tf.expand_dims(tf.layers.dense(inputs=Hout,units=self.config.hidden_dim,activation=tf.nn.relu),1) 
-        #print("feature_inputs.shape: ", feature_inputs.get_shape().as_list())
 
         # Trainable Word Embeddings, embedding_inputs.shape=[-1, None, 512]
         embeddings = tf.get_variable('embedding_matrix', [self.config.num_classes, self.config.hidden_dim])
@@ -115,18 +114,14 @@ class SPJ(object):
         #print(x2.get_shape().as_list())
         n = tf.shape(x2)[1]
         feature_inputs = tf.tile(input=feature_inputs,multiples=[1,n,1]) # 
-        print("feature_inputs.shape: ", feature_inputs.get_shape().as_list())
         lstm_inputs = tf.concat(values=[feature_inputs, embedding_inputs],axis=2) # [batchsize*30,50,512+1500]
-        print("lstm_inputs.shape: ", lstm_inputs.get_shape().as_list())
-        lstm = tf.contrib.rnn.MultiRNNCell([lstm_cell(self.config.hidden_dim) for _ in range(self.config.num_layers)])
+        lstm = tf.contrib.rnn.MultiRNNCell([lstm_cell(self.config.hidden_dim, self._keep_prob) for _ in range(self.config.num_layers)])
         initial_state = lstm.zero_state(self.config.batch_size*self.config.num_proposals, tf.float32) 
         lstm_outputs, final_state = tf.nn.dynamic_rnn(
             cell=lstm,
             inputs=lstm_inputs,
             initial_state=initial_state
         ) # lstm_outputs: [batchsize*30,50,512]
-  
-        print(lstm_outputs.get_shape().as_list())
         logits = tf.layers.dense(inputs=tf.reshape(lstm_outputs,[-1,self.config.hidden_dim]),units=self.config.num_classes)
         predictions = tf.argmax(logits,1)
         # End Captioning Module
@@ -160,7 +155,7 @@ class SPJ(object):
                       feed_dict={self._H: minibatch_H, self._Ipast: minibatch_Ipast, 
                                  self._Ifuture: minibatch_Ifuture, self._x: prev_caption, 
                                  self._y: minibatch_Ycaptions,
-                                 self._batch_size: minibatch_H.shape[0]})
+                                 self._keep_prob: 1.0})
             logits = logits[0]
             next_logits = logits[:,:,idx_next_pred,:]
             raw_predicted = np.zeros([next_logits.shape[0],next_logits.shape[1],1])
@@ -176,22 +171,21 @@ class SPJ(object):
         return sent_pred
     
     def generate_caption_2(self, session, H, Ipast, Ifuture, labels):        
-        batchsize = H.shape[0]
-        assert (batchsize == self.config.batch_size),"batch sizes do not match!"
-        x = np.ones([batchsize, self.config.num_proposals, 1])*2 # b'<sta>': 2
-        y = np.ones([batchsize, self.config.num_proposals,1,self.config.num_classes])
+        assert (H.shape[0] == self.config.batch_size),"batch sizes do not match!"
+        x = np.ones([self.config.batch_size, self.config.num_proposals, 1])*2 # b'<sta>': 2
+        y = np.ones([self.config.batch_size, self.config.num_proposals,1,self.config.num_classes])
         while (x.shape[2] - 1) < self.config.num_steps:
             feed = {self._H: H,
                     self._Ipast: Ipast,
                     self._Ifuture: Ifuture,
                     self._x: x,
                     self._y: y,
-                    self._batch_size: batchsize}
+                    self._keep_prob: 1.0}
             predictions = session.run(self._predictions, feed_dict=feed)
             next_x = predictions[:,:,-1]
             next_x = np.expand_dims(next_x, axis=2)
             x = np.concatenate((x,next_x),axis=2)
-            y = np.ones([batchsize, self.config.num_proposals,x.shape[2],self.config.num_classes])
+            y = np.ones([self.config.batch_size, self.config.num_proposals,x.shape[2],self.config.num_classes])
         return predictions, labels
     
 
