@@ -18,7 +18,7 @@ def lstm_cell(hidden_dim, p_dropout):
 class Config(object):
     num_c3d_features = 500
     num_proposals = 30
-    num_classes = 10194
+    num_classes = 10999
     num_steps = 50
     batch_size = 1
     hidden_dim = 512
