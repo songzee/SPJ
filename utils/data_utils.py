@@ -75,7 +75,7 @@ def export_vocabulary(train_data):
         for val in vocabulary:
             writer.writerow([val])
                      
-def video_preprocess(home_dir, train_file):
+def video_preprocess(home_dir, train_file, max_num_proposals):
     # format
     train_data = pd.read_csv(train_file)
     num_examples = len(train_data['id'].unique())
@@ -96,8 +96,8 @@ def video_preprocess(home_dir, train_file):
     f_ends = []
     max_pooled_representations = []
     max_proposals = 0
-    padded_proposals = np.zeros((num_examples,500,30))
-    padded_framestamps = -1*np.ones((num_examples,2,30))
+    padded_proposals = np.zeros((num_examples,500,max_num_proposals))
+    padded_framestamps = -1*np.ones((num_examples,2,max_num_proposals))
     for v,video_id in enumerate(train_ids):
         #print("video id: ", video_id)
         temp = train_data[train_data['id']==video_id].reset_index()
@@ -109,6 +109,8 @@ def video_preprocess(home_dir, train_file):
             max_proposals = temp.shape[0]
 
         for i in range(temp.shape[0]):
+            if i >= max_num_proposals:
+                break
 
             # get time info
             duration = temp["duration"][i]
@@ -280,7 +282,7 @@ def padded(token_batch, batch_pad=0):
 
     return res
 
-def get_padded_sentences_id(pad_len,train_ids, train_data,word2id):
+def get_padded_sentences_id(pad_len,train_ids, train_data,word2id, max_num_proposals):
     _PAD = b"<pad>"
     _UNK = b"<unk>"
     _STA = b"<sta>"
@@ -291,10 +293,12 @@ def get_padded_sentences_id(pad_len,train_ids, train_data,word2id):
     STA_ID = 2
     END_ID = 3
     num_examples = len(train_ids)
-    all_padded_sentences = np.zeros((num_examples,pad_len,30))
+    all_padded_sentences = np.zeros((num_examples,pad_len,max_num_proposals))
     for v,video_id in enumerate(train_ids):
         temp = train_data[train_data['id']==video_id].reset_index()
         for i in range(temp.shape[0]):
+            if i >= max_num_proposals:
+                break
             words,ids = sentence_to_token_ids(temp['sentences'][i][:-1],word2id)
             ids_pad = padded(ids,pad_len)
             if len(ids_pad) > pad_len:
@@ -302,10 +306,12 @@ def get_padded_sentences_id(pad_len,train_ids, train_data,word2id):
             all_padded_sentences[v,:,i] = ids_pad
 
 
-    all_padded_sentences_2 = np.zeros((num_examples,pad_len+1,30))
+    all_padded_sentences_2 = np.zeros((num_examples,pad_len+1,max_num_proposals))
     for v,video_id in enumerate(train_ids):
         temp = train_data[train_data['id']==video_id].reset_index()
         for i in range(temp.shape[0]):
+            if i >= max_num_proposals:
+                break
             words,ids = sentence_to_token_ids(temp['sentences'][i][:-1],word2id)
             ids_pad = padded(ids,pad_len+1)
             if len(ids_pad) > pad_len:
@@ -427,3 +433,12 @@ def print_pred_and_labels(predictions, labels, videoids, id2word, example=0, pro
     for i in range(num_steps):
         print('{:20.20}'.format(str(videoids[example])),'{:20.20}'.format(str(id2word[predictions[example,proposal,i]]) ), '{:20.20}'.format(str(id2word[labels[example,proposal,i]])))
     return 0
+
+def truncate_captions(captions):
+    num_examples, num_proposals, num_steps = captions.shape
+    for i in range(num_examples):
+        for j in range(num_proposals):
+            if captions[i,j,-1] != 0:
+                captions[i,j,-1] = 3
+    return captions
+                

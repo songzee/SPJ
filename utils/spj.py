@@ -17,10 +17,10 @@ def lstm_cell(hidden_dim, p_dropout):
 
 class Config(object):
     num_c3d_features = 500
-    num_proposals = 30
+    num_proposals = 10
     num_classes = 10999
-    num_steps = 50
-    batch_size = 1
+    num_steps = 30
+    batch_size = 25
     hidden_dim = 512
     num_layers = 2
     eps = 1e-10
@@ -58,6 +58,9 @@ class SPJ(object):
             name="y")
         self._keep_prob=tf.placeholder(
             dtype=tf.int32,shape=()
+        )
+        self._reg=tf.placeholder(
+            dtype=tf.float32,shape=()
         )
         
         # Parameters
@@ -138,7 +141,12 @@ class SPJ(object):
         # loss function
         softmax = tf.nn.softmax(logits,axis=1)
         cross_entropy = tf.reshape(self._y,shape=[-1,self.config.num_classes])*tf.log(softmax)
-        self.loss = loss = -tf.reduce_sum(tf.reduce_sum(cross_entropy,axis=1))
+        normalizer = (self.config.batch_size*self.config.num_proposals*self.config.num_steps)
+        loss = -tf.reduce_sum(tf.reduce_sum(cross_entropy,axis=1))/(normalizer)                                             
+        # Regularization
+        #reg_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
+        #loss = my_normal_loss + reg_constant * sum(reg_losses)
+        self._loss = loss
         
     
     def caption_generation(self,sess,minibatch_H,minibatch_Ipast,minibatch_Ifuture,minibatch_Xcaptions,minibatch_Ycaptions):
