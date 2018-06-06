@@ -129,8 +129,10 @@ def video_preprocess(home_dir, train_file, max_num_proposals):
             #print(f_end)
             if f_init <= f_end:
                 max_pooled_rep = temporal_pooling(C3D_features[f_init:f_end+1],"max")
+                print(np.sum(np.isnan(max_pooled_rep)))
             else:
                 max_pooled_rep = temporal_pooling(C3D_features[f_end:f_init+1],"max")
+                print(np.sum(np.isnan(max_pooled_rep)))
 
             # append info
             f_inits.append(f_init)
