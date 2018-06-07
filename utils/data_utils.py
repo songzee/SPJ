@@ -112,6 +112,8 @@ def video_preprocess(home_dir, train_file, max_num_proposals):
         for i in range(temp.shape[0]):
             if i >= max_num_proposals:
                 break
+            
+            
 
             # get time info
             duration = temp["duration"][i]
@@ -122,16 +124,14 @@ def video_preprocess(home_dir, train_file, max_num_proposals):
             # compute start and end frame
             f_init = int(round((t_init/duration)*num_frames))
             f_end = int(round((t_end/duration)*num_frames))
-            #print("f_init: ", f_init, "t_init: ", t_init)
-            #print("f_end: ", f_end, "t_end: ", t_end)
+            if (t_init == f_end) or (t_init <= -1) or (t_end <= -1) or (f_init == f_end):
+                print("error")
+                continue
 
-            # get max pool
-            #print(f_init)
-            #print(f_end)
-            if f_init <= f_end:
+            if f_init < f_end:
                 max_pooled_rep = temporal_pooling(C3D_features[f_init:f_end+1],"max")
                 #print(np.sum(np.isnan(max_pooled_rep)))
-            else:
+            elif f_init > f_end:
                 max_pooled_rep = temporal_pooling(C3D_features[f_end:f_init+1],"max")
                 #print(np.sum(np.isnan(max_pooled_rep)))
 
