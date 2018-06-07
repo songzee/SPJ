@@ -6,6 +6,7 @@ import h5py
 import re
 import math
 from sklearn.utils.extmath import softmax
+import nltk
 
 def temporal_pooling(features,mode="max"):
     """
@@ -87,7 +88,7 @@ def video_preprocess(home_dir, train_file, max_num_proposals):
     train_data["t_init"] = train_data["t_init"].astype('float32')
     train_data["t_end"] = train_data["t_end"].astype('float32')
     train_data = train_data.drop('timestamps', 1)
-
+    
     # pool
     filename = home_dir + "/Data/sub_activitynet_v1-3.c3d.hdf5"
     video_feature_representation = h5py.File(filename, 'r')
@@ -129,10 +130,10 @@ def video_preprocess(home_dir, train_file, max_num_proposals):
             #print(f_end)
             if f_init <= f_end:
                 max_pooled_rep = temporal_pooling(C3D_features[f_init:f_end+1],"max")
-                print(np.sum(np.isnan(max_pooled_rep)))
+                #print(np.sum(np.isnan(max_pooled_rep)))
             else:
                 max_pooled_rep = temporal_pooling(C3D_features[f_end:f_init+1],"max")
-                print(np.sum(np.isnan(max_pooled_rep)))
+                #print(np.sum(np.isnan(max_pooled_rep)))
 
             # append info
             f_inits.append(f_init)
@@ -443,4 +444,64 @@ def truncate_captions(captions):
             if captions[i,j,-1] != 0:
                 captions[i,j,-1] = 3
     return captions
+
+def sample_features(video_ids_minibatch, framestamps_minibatch, num_proposals, home_dir, max_num_frames=2000, num_features=500):
+    batchsize = len(video_ids_minibatch)
+    Hp = np.zeros((batchsize, num_proposals, max_num_frames, num_features))
+    filename = home_dir + "/Data/sub_activitynet_v1-3.c3d.hdf5"
+    video_feature_representation = h5py.File(filename, 'r')
+    for v,video_id in enumerate(video_ids_minibatch):
+        C3D_features = video_feature_representation[video_id]['c3d_features'].value
+        for p in range(num_proposals):
+            f_init = int(framestamps_minibatch[v,0,p])
+            f_end = int(framestamps_minibatch[v,1,p])
+            if f_init < f_end and f_init >= 0 and f_end >= 0:
+                Hp[v,p,:(f_end-f_init),:] = C3D_features[f_init:f_end]
+
+            elif f_init > f_end and f_init >= 0 and f_end >= 0:
+                Hp[v,p,:(f_init-f_end),:] = C3D_features[f_end:f_init]
+    return Hp
+
+
+def compute_bleu_at_1_2_3_4(labels, predictions):
+    '''
+        labels: array of shape = (num_examples, num_proposals, num_steps)
+        predictions: array of shape = (num_examples, num_proposals, num_steps)
+
+        returns:
+            mean bleu score at 1, 2, 3, and 4 for all predicted captions
+    '''
+    assert labels.shape == predictions.shape, "labels and predictions are not of same shape"
+    num_examples = labels.shape[0]
+    num_proposals = labels.shape[1]
+    weights_at_1 = (1.0, 0.0,   0.0,  0,0)
+    weights_at_2 = (0.5, 0.5,   0.0,  0.0)
+    weights_at_3 = (0.33, 0.33, 0.33, 0.0)
+    weights_at_4 = (0.25, 0.25, 0.25, 0.25)
+    bleu_at_1=[]
+    bleu_at_2=[]
+    bleu_at_3=[]
+    bleu_at_4=[]
+    for i in range(num_examples):
+        for p in  range(num_proposals):
+            if sum(labels[i,p])==0:
+                break 
+            reference = []
+            hypothesis = []
+            for word_id in predictions[i,p]:
+                hypothesis.append(word_id)
+                if word_id == 3:
+                    #print(hypothesis)
+                    break # stop
+            for word_id in labels[i,p]:
+                reference.append(word_id)
+                if word_id == 3:
+                    #print(reference)
+                    break # stop        
+            bleu_at_1.append(nltk.translate.bleu_score.sentence_bleu([reference], hypothesis, weights_at_1))
+            bleu_at_2.append(nltk.translate.bleu_score.sentence_bleu([reference], hypothesis, weights_at_2))
+            bleu_at_3.append(nltk.translate.bleu_score.sentence_bleu([reference], hypothesis, weights_at_3))
+            bleu_at_4.append(nltk.translate.bleu_score.sentence_bleu([reference], hypothesis, weights_at_4))
+            #print(bleu_at_1)
+    return np.mean(bleu_at_1), np.mean(bleu_at_2), np.mean(bleu_at_3), np.mean(bleu_at_4)
                 
